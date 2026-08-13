@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, isConfigValid } from '@/lib/firebase';
 import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
-import { mockSchemes, Scheme } from '@/lib/mock-data';
+import { Scheme } from '@/lib/mock-data';
 import * as cheerio from 'cheerio';
 
 export async function GET() {
@@ -12,12 +12,14 @@ export async function GET() {
     }, { status: 400 });
   }
 
+  const firestore = db;
+
   try {
     // 1. Clean up existing schemes in Firestore to remove old buggy entries
-    const colRef = collection(db, 'schemes');
+    const colRef = collection(firestore, 'schemes');
     const snapshot = await getDocs(colRef);
     if (!snapshot.empty) {
-      const deleteBatch = writeBatch(db);
+      const deleteBatch = writeBatch(firestore);
       snapshot.forEach((d) => {
         deleteBatch.delete(d.ref);
       });
@@ -46,9 +48,7 @@ export async function GET() {
         const cells = $(element).find('th, td');
         if (cells.length >= 3) {
           const name = $(cells[0]).text().trim().replace(/\[\d+\]/g, '');
-          const type = $(cells[1]).text().trim().replace(/\[\d+\]/g, '');
           const ministry = $(cells[2]).text().trim().replace(/\[\d+\]/g, '');
-          const launchYear = cells.length >= 4 ? $(cells[3]).text().trim().replace(/\[\d+\]/g, '') : '';
           const sector = cells.length >= 5 ? $(cells[4]).text().trim().replace(/\[\d+\]/g, '') : '';
           
           // The last element or index 5 contains the summary description
@@ -118,9 +118,9 @@ export async function GET() {
     const allSchemes = scrapedSchemes;
 
     // 4. Write in batches to Firestore (split into chunks of 450 to stay under 500 limit)
-    const batch = writeBatch(db);
+    const batch = writeBatch(firestore);
     allSchemes.forEach((scheme) => {
-      const docRef = doc(db, 'schemes', scheme.id);
+      const docRef = doc(firestore, 'schemes', scheme.id);
       batch.set(docRef, scheme);
     });
 
@@ -132,11 +132,12 @@ export async function GET() {
       count: allSchemes.length
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Seeding schemes failed:', err);
+    const message = err instanceof Error ? err.message : 'Failed to seed schemes into database.';
     return NextResponse.json({
       success: false,
-      error: err?.message || 'Failed to seed schemes into database.'
+      error: message
     }, { status: 500 });
   }
 }

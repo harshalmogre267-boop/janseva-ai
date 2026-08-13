@@ -31,11 +31,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // ── CASE A: FIREBASE IS CONFIGURED ──
     if (isConfigValid && auth && db) {
+      const firestore = db;
       const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
           try {
             // Fetch profile data from Firestore
-            const docRef = doc(db, 'users', firebaseUser.uid);
+            const docRef = doc(firestore, 'users', firebaseUser.uid);
             const docSnap = await getDoc(docRef);
             
             if (docSnap.exists()) {

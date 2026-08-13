@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Shield, Phone, Mail, User, Lock, ArrowRight, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 
@@ -55,8 +54,8 @@ export default function AuthPage() {
   }, [timer]);
 
   // Translate Firebase Authentication errors to user-friendly messages
-  const translateFirebaseError = (err: any) => {
-    const code = err?.code;
+  const translateFirebaseError = (err: unknown) => {
+    const code = typeof err === 'object' && err && 'code' in err ? err.code : undefined;
     switch (code) {
       case 'auth/email-already-in-use':
         return 'This email address is already in use by another account.';
@@ -75,7 +74,7 @@ export default function AuthPage() {
       case 'auth/too-many-requests':
         return 'Too many login attempts. Access has been temporarily disabled. Please try again later.';
       default:
-        return err?.message || 'Authentication failed. Please check your credentials and try again.';
+        return err instanceof Error ? err.message : 'Authentication failed. Please check your credentials and try again.';
     }
   };
 
@@ -104,7 +103,7 @@ export default function AuthPage() {
     try {
       await register(fullName.trim(), regEmail.trim(), regPassword);
       router.push('/dashboard');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Registration error:', err);
       setError(translateFirebaseError(err));
     } finally {
@@ -129,7 +128,7 @@ export default function AuthPage() {
     try {
       await loginWithEmail(loginEmail.trim(), loginPassword);
       router.push('/dashboard');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login error:', err);
       setError(translateFirebaseError(err));
     } finally {
