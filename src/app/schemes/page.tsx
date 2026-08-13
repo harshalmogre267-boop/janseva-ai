@@ -6,14 +6,20 @@ import Chatbot from '@/components/chatbot';
 import SchemeCard from '@/components/scheme-card';
 import FilterSidebar from '@/components/filter-sidebar';
 import Footer from '@/components/footer';
-import { mockSchemes, calculateEligibilityScore, Scheme } from '@/lib/mock-data';
+import { calculateEligibilityScore, Scheme } from '@/lib/mock-data';
 import { useAuth } from '@/contexts/auth-context';
+import { useSchemes } from '@/hooks/use-schemes';
 import { Search, SlidersHorizontal, LayoutGrid, List, ArrowUpDown } from 'lucide-react';
 
 export default function SchemesPage() {
   const { user } = useAuth();
-  const [allSchemes, setAllSchemes] = useState<Scheme[]>(mockSchemes);
+  const { schemes: dbSchemes } = useSchemes();
+  const [allSchemes, setAllSchemes] = useState<Scheme[]>([]);
   const [isScraping, setIsScraping] = useState(false);
+
+  useEffect(() => {
+    setAllSchemes(dbSchemes);
+  }, [dbSchemes]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'relevance' | 'name' | 'deadline'>('relevance');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');

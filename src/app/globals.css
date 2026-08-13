@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
+/* Custom dark variant for class-based dark mode in Tailwind v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Lato", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "EB Garamond", serif;
 
   --color-navy-50: #eef2f7;
   --color-navy-100: #d5dfe9;
@@ -129,6 +132,12 @@
 /* Base styles */
 html {
   scroll-behavior: smooth;
+}
+
+/* Accessible focus state rings */
+*:focus-visible {
+  outline: 3px solid var(--color-emerald-500);
+  outline-offset: 2px;
 }
 
 body {
@@ -353,4 +362,116 @@ body {
   background-color: transparent !important;
   border: none !important;
   box-shadow: none !important;
+}
+
+/* ==========================================================================
+   Light Mode Overrides & Adaptations
+   ========================================================================== */
+
+/* 1. Global Base */
+.light body {
+  background-color: var(--color-slate-50);
+  color: var(--color-slate-600);
+}
+
+/* 2. Text adjustments: headings, body copy, surface text */
+.light h1, .light h2, .light h3, .light h4, .light h5, .light h6,
+.light .text-white:not(.btn *, button *, a.bg-saffron-500 *, a.bg-gradient-to-r *, .text-white-force) {
+  color: var(--color-slate-900);
+}
+
+.light .text-surface-300 {
+  color: var(--color-slate-700);
+}
+
+.light .text-surface-400 {
+  color: var(--color-slate-500);
+}
+
+.light .text-surface-500 {
+  color: var(--color-slate-400);
+}
+
+/* 3. Container backgrounds, borders, and overlays */
+.light .border-white\/5,
+.light .border-white\/10,
+.light .border-white\/20 {
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.light .bg-white\/5,
+.light .bg-white\/10 {
+  background-color: rgba(15, 23, 42, 0.03);
+}
+
+.light .hover\:bg-white\/5:hover {
+  background-color: rgba(15, 23, 42, 0.04);
+}
+
+/* 4. Glassmorphism adjustments */
+.light .glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(15, 23, 42, 0.06);
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.04);
+}
+
+.light .glass-card:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(249, 115, 22, 0.25);
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.06);
+}
+
+.light .glass {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+/* 5. Gradient and mesh alterations */
+.light .mesh-gradient {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(30, 58, 95, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(249, 115, 22, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 40% 80%, rgba(16, 185, 129, 0.04) 0%, transparent 50%),
+    var(--color-slate-50);
+}
+
+/* 6. Navigation Bar custom overrides */
+.light nav .text-white {
+  color: var(--color-slate-900);
+}
+
+.light nav .text-surface-400:hover {
+  color: var(--color-slate-900);
+}
+
+.light nav .hover\:bg-white\/5:hover {
+  background-color: rgba(15, 23, 42, 0.05);
+}
+
+.light .nav-blur {
+  background: rgba(248, 250, 252, 0.8);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+/* 7. Input fields style overrides */
+.light input,
+.light select,
+.light textarea {
+  background-color: var(--color-white) !important;
+  color: var(--color-slate-900) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+.light input:focus,
+.light select:focus,
+.light textarea:focus {
+  border-color: var(--color-saffron-500) !important;
+}
+
+/* 8. Shimmer override */
+.light .shimmer {
+  background: linear-gradient(90deg,
+    rgba(0, 0, 0, 0.03) 25%,
+    rgba(0, 0, 0, 0.08) 50%,
+    rgba(0, 0, 0, 0.03) 75%);
 }

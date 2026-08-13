@@ -6,8 +6,9 @@ import Chatbot from '@/components/chatbot';
 import Footer from '@/components/footer';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
+import { useSchemes } from '@/hooks/use-schemes';
 import SchemeCard from '@/components/scheme-card';
-import { mockSchemes, mockUserProfile, calculateEligibilityScore, Scheme } from '@/lib/mock-data';
+import { mockUserProfile, calculateEligibilityScore, Scheme } from '@/lib/mock-data';
 import { 
   Bookmark, 
   Bell, 
@@ -30,6 +31,7 @@ interface Reminder {
 
 export default function BookmarksPage() {
   const { user, loading } = useAuth();
+  const { schemes } = useSchemes();
   const router = useRouter();
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(['1', '3', '4']); // default mocked bookmarks
 
@@ -96,7 +98,7 @@ export default function BookmarksPage() {
 
   const activeUser = user || mockUserProfile;
 
-  const bookmarkedSchemes = mockSchemes
+  const bookmarkedSchemes = schemes
     .filter((s) => bookmarkedIds.includes(s.id))
     .map((s) => ({
       ...s,

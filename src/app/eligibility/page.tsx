@@ -7,8 +7,9 @@ import Navbar from '@/components/navbar';
 import Chatbot from '@/components/chatbot';
 import Footer from '@/components/footer';
 import EligibilityMeter from '@/components/eligibility-meter';
-import { mockSchemes, calculateEligibilityScore, Scheme } from '@/lib/mock-data';
+import { calculateEligibilityScore, Scheme } from '@/lib/mock-data';
 import { useAuth } from '@/contexts/auth-context';
+import { useSchemes } from '@/hooks/use-schemes';
 import { 
   Brain, 
   CheckCircle, 
@@ -25,6 +26,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export default function EligibilityPage() {
   const { user, loading } = useAuth();
+  const { schemes } = useSchemes();
   const router = useRouter();
   const [analyzing, setAnalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'high' | 'partial' | 'low'>('all');
@@ -41,12 +43,12 @@ export default function EligibilityPage() {
   };
 
   const schemesWithScores = useMemo(() => {
-    return mockSchemes.map((s, i) => {
+    return schemes.map((s, i) => {
       const base = user ? calculateEligibilityScore(s, user) : 0;
       const offset = analysisOffsets[i] || 0;
       return { ...s, eligibilityScore: Math.max(0, Math.min(100, base + offset)) };
     });
-  }, [user, analysisOffsets]);
+  }, [user, schemes, analysisOffsets]);
 
   // Protect route
   useEffect(() => {
@@ -71,7 +73,7 @@ export default function EligibilityPage() {
     // Simulate complex Gemini API matching call
     await new Promise((resolve) => setTimeout(resolve, 2000));
     // Generate random offsets outside of render to satisfy React purity rules
-    const offsets = mockSchemes.map(() => Math.floor(Math.random() * 7) - 3);
+    const offsets = schemes.map(() => Math.floor(Math.random() * 7) - 3);
     setAnalysisOffsets(offsets);
     setAnalyzing(false);
   };

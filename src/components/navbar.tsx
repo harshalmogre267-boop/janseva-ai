@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
+import { useTheme } from '@/contexts/theme-context';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Home,
@@ -18,6 +19,8 @@ import {
   LogOut,
   Brain,
   ChevronDown,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { mockNotifications } from '@/lib/mock-data';
 
@@ -31,6 +34,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -111,6 +115,19 @@ export default function Navbar() {
 
             {/* Right Section */}
             <div className="flex items-center gap-2">
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="p-2.5 rounded-xl text-surface-400 hover:text-white hover:bg-white/5 transition-all"
+                aria-label="Toggle Theme"
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-5 h-5 text-saffron-400" />
+                ) : (
+                  <Moon className="w-5 h-5 text-navy-500" />
+                )}
+              </button>
+
               {/* Notifications */}
               <div className="relative">
                 <button
@@ -188,7 +205,6 @@ export default function Navbar() {
                         <button 
                           onClick={() => {
                             logout();
-                            router.push('/auth');
                           }}
                           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-400 hover:text-red-300 hover:bg-red-500/5 transition-colors text-left"
                         >

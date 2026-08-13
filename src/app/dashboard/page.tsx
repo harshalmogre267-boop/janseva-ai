@@ -7,13 +7,15 @@ import Chatbot from '@/components/chatbot';
 import SchemeCard from '@/components/scheme-card';
 import StatsCard from '@/components/stats-card';
 import Footer from '@/components/footer';
-import { mockSchemes, calculateEligibilityScore, schemeCategories } from '@/lib/mock-data';
+import { calculateEligibilityScore, schemeCategories } from '@/lib/mock-data';
 import { useAuth } from '@/contexts/auth-context';
+import { useSchemes } from '@/hooks/use-schemes';
 import { Users, FileText, CheckCircle2, TrendingUp, ArrowRight, Brain, Clock, UserCircle, GraduationCap, Building2, Landmark } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
+  const { schemes } = useSchemes();
   const router = useRouter();
   const activeUser = user;
   const [now] = useState(() => Date.now());
@@ -26,17 +28,17 @@ export default function DashboardPage() {
   }, [user, loading, router]);
 
   const topSchemes = activeUser
-    ? mockSchemes
+    ? schemes
         .filter((s) => !s.requiresStudent) // non-student schemes for general section
         .map((s) => ({ ...s, eligibilityScore: calculateEligibilityScore(s, activeUser) }))
         .filter((s) => s.eligibilityScore >= 50) // strictly show relevant schemes
         .sort((a, b) => b.eligibilityScore - a.eligibilityScore)
         .slice(0, 4)
-    : mockSchemes.filter((s) => !s.requiresStudent).slice(0, 4).map((s) => ({ ...s, eligibilityScore: 0 }));
+    : schemes.filter((s) => !s.requiresStudent).slice(0, 4).map((s) => ({ ...s, eligibilityScore: 0 }));
 
   // Student-specific schemes sorted by eligibility
   const studentSchemes = activeUser
-    ? mockSchemes
+    ? schemes
         .filter((s) => s.requiresStudent)
         .map((s) => ({ ...s, eligibilityScore: calculateEligibilityScore(s, activeUser) }))
         .filter((s) => s.eligibilityScore >= 50) // strictly show relevant scholarships
@@ -45,7 +47,7 @@ export default function DashboardPage() {
     : [];
 
   const totalEligible = activeUser
-    ? mockSchemes.filter((s) => calculateEligibilityScore(s, activeUser) >= 50).length
+    ? schemes.filter((s) => calculateEligibilityScore(s, activeUser) >= 50).length
     : 0;
 
   const firstName = activeUser?.name?.split(' ')[0] || 'Citizen';
@@ -117,7 +119,7 @@ export default function DashboardPage() {
           />
           <StatsCard
             title="Total Schemes"
-            value={mockSchemes.length}
+            value={schemes.length}
             suffix="+"
             icon={FileText}
             color="#3b82f6"
@@ -125,8 +127,8 @@ export default function DashboardPage() {
           />
           <StatsCard
             title="Avg Match Score"
-            value={activeUser
-              ? Math.round(mockSchemes.reduce((acc, s) => acc + calculateEligibilityScore(s, activeUser), 0) / mockSchemes.length)
+            value={activeUser && schemes.length > 0
+              ? Math.round(schemes.reduce((acc, s) => acc + calculateEligibilityScore(s, activeUser), 0) / schemes.length)
               : 0}
             suffix="%"
             icon={TrendingUp}
@@ -310,7 +312,7 @@ export default function DashboardPage() {
                 Upcoming Deadlines
               </h3>
               <div className="space-y-3">
-                {mockSchemes
+                {schemes
                   .filter((s) => s.deadline)
                   .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
                   .slice(0, 3)
