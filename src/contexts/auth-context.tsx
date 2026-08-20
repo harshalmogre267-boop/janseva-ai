@@ -25,8 +25,23 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const activeUser = localStorage.getItem('janseva_active_user');
+        if (activeUser) return JSON.parse(activeUser);
+      } catch (e) {
+        console.error('Failed to load session from localStorage:', e);
+      }
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem('janseva_active_user');
+    }
+    return true;
+  });
 
   // Initialize and Sync Auth State
   useEffect(() => {
@@ -48,7 +63,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const docSnap = await getDoc(docRef);
             
             if (docSnap.exists()) {
-              setUser(docSnap.data() as UserProfile);
+              const profile = docSnap.data() as UserProfile;
+              localStorage.setItem('janseva_active_user', JSON.stringify(profile));
+              setUser(profile);
             } else {
               // Create default profile if not found in Firestore
               const cleanPhone = activePhone || (firebaseUser.phoneNumber 
@@ -80,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               };
               
               await setDoc(docRef, newProfile);
+              localStorage.setItem('janseva_active_user', JSON.stringify(newProfile));
               setUser(newProfile);
             }
           } catch (err) {
@@ -91,9 +109,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (activePhone) {
             const storedProfile = localStorage.getItem(`janseva_profile_${activePhone}`);
             if (storedProfile) {
-              setUser(JSON.parse(storedProfile));
+              const profile = JSON.parse(storedProfile);
+              localStorage.setItem('janseva_active_user', JSON.stringify(profile));
+              setUser(profile);
             }
           } else {
+            localStorage.removeItem('janseva_active_user');
             setUser(null);
           }
         }
@@ -136,6 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (docSnap.exists()) {
           const profile = docSnap.data() as UserProfile;
           localStorage.setItem(`janseva_profile_${cleanPhone}`, JSON.stringify(profile));
+          localStorage.setItem('janseva_active_user', JSON.stringify(profile));
           setUser(profile);
           return;
         }
@@ -146,7 +168,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const storedProfile = localStorage.getItem(`janseva_profile_${cleanPhone}`);
     if (storedProfile) {
-      setUser(JSON.parse(storedProfile));
+      const profile = JSON.parse(storedProfile);
+      localStorage.setItem('janseva_active_user', JSON.stringify(profile));
+      setUser(profile);
     } else {
       const newProfile: UserProfile = {
         id: `phone_${cleanPhone}`,
@@ -172,6 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       localStorage.setItem(`janseva_profile_${cleanPhone}`, JSON.stringify(newProfile));
+      localStorage.setItem('janseva_active_user', JSON.stringify(newProfile));
       
       if (isConfigValid && auth && db) {
         try {
@@ -225,6 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+      localStorage.setItem('janseva_active_user', JSON.stringify(newProfile));
       setUser(newProfile);
       return;
     }
@@ -259,6 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     
     localStorage.setItem(`janseva_profile_${mockPhone}`, JSON.stringify(newProfile));
+    localStorage.setItem('janseva_active_user', JSON.stringify(newProfile));
     setUser(newProfile);
   };
 
@@ -291,6 +318,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Update Profile Data
   const updateProfile = async (profile: UserProfile) => {
     setUser(profile);
+    localStorage.setItem('janseva_active_user', JSON.stringify(profile));
 
     // If it's a local storage user or in demo mode
     const cleanPhone = profile.phone.replace(/\D/g, '').slice(-10);
@@ -309,6 +337,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Logout Session
   const logout = async () => {
     localStorage.removeItem('janseva_active_phone');
+    localStorage.removeItem('janseva_active_user');
     
     // Clear Firebase session if active
     if (isConfigValid && auth) {
