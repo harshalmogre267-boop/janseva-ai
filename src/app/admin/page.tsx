@@ -28,6 +28,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
+import { db, isConfigValid } from '@/lib/firebase';
+import { collection, deleteDoc, doc, getDocs, setDoc } from 'firebase/firestore';
 
 // Dynamically import Recharts components to prevent Next.js SSR hydration errors
 const ResponsiveContainer = dynamic(
@@ -90,6 +92,23 @@ export default function AdminPage() {
     }
   }, [user, loading, router]);
 
+  useEffect(() => {
+    async function loadSchemes() {
+      if (!isConfigValid || !db) return;
+
+      try {
+        const snapshot = await getDocs(collection(db, 'schemes'));
+        if (!snapshot.empty) {
+          setSchemes(snapshot.docs.map((schemeDoc) => schemeDoc.data() as Scheme));
+        }
+      } catch (err) {
+        console.error('Failed to load schemes from Firestore:', err);
+      }
+    }
+
+    loadSchemes();
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen mesh-gradient flex items-center justify-center">
@@ -105,7 +124,7 @@ export default function AdminPage() {
     return null;
   }
   
-  const handleCreateScheme = (e: React.FormEvent) => {
+  const handleCreateScheme = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSchemeName || !newSchemeMinistry) return;
 
@@ -136,6 +155,15 @@ export default function AdminPage() {
       isActive: true
     };
 
+    if (isConfigValid && db) {
+      try {
+        await setDoc(doc(db, 'schemes', newScheme.id), newScheme);
+      } catch (err) {
+        console.error('Failed to save scheme to Firestore:', err);
+        return;
+      }
+    }
+
     setSchemes((prev) => [newScheme, ...prev]);
     setCreateModalOpen(false);
     
@@ -146,7 +174,16 @@ export default function AdminPage() {
     setNewSchemeBenefit('');
   };
 
-  const deleteScheme = (id: string) => {
+  const deleteScheme = async (id: string) => {
+    if (isConfigValid && db) {
+      try {
+        await deleteDoc(doc(db, 'schemes', id));
+      } catch (err) {
+        console.error('Failed to delete scheme from Firestore:', err);
+        return;
+      }
+    }
+
     setSchemes((prev) => prev.filter((s) => s.id !== id));
   };
 

@@ -29,6 +29,14 @@ export interface Scheme {
   eligibilityScore?: number;
 }
 
+export interface Reminder {
+  id: string;
+  schemeId: string;
+  schemeName: string;
+  remindAt: string;
+  message: string;
+}
+
 export interface UserProfile {
   id: string;
   phone: string;
@@ -48,7 +56,10 @@ export interface UserProfile {
   isFarmer: boolean;
   isStudent: boolean;
   preferredLanguage: string;
+  bookmarks?: string[];
+  reminders?: Reminder[];
 }
+
 
 export const indianStates = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',

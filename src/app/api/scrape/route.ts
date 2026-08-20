@@ -32,27 +32,55 @@ export async function GET() {
       // Skip the header row
       if (index === 0) return;
 
-      const tds = $(element).find('td');
-      if (tds.length >= 3) {
-        const name = $(tds[0]).text().trim();
-        const ministry = $(tds[1]).text().trim();
-        const description = $(tds[2]).text().trim();
+      const cells = $(element).find('th, td');
+      if (cells.length >= 3) {
+        const name = $(cells[0]).text().trim();
+        const ministry = cells.length >= 3 ? $(cells[2]).text().trim() : 'Government of India';
+        const sector = cells.length >= 5 ? $(cells[4]).text().trim() : '';
+        const description = cells.length >= 6 
+          ? $(cells[5]).text().trim() 
+          : $(cells[cells.length - 1]).text().trim();
         
-        // Skip empty rows
-        if (!name || name.length < 3) return;
+        // Skip empty rows and headers
+        if (!name || name.length < 3 || name === 'CS/CSS' || name === 'Scheme') return;
 
         // Clean up citation brackets like [1]
         const cleanName = name.replace(/\[\d+\]/g, '');
         const cleanMinistry = ministry.replace(/\[\d+\]/g, '');
-        const cleanDescription = description.replace(/\[\d+\]/g, '');
+        const cleanDescription = description.replace(/\[\d+\]/g, '') || 'No summary available.';
+        const cleanSector = sector.replace(/\[\d+\]/g, '');
+
+        // Categorize based on keywords in name, sector, or desc
+        let category = 'social';
+        const lowerName = cleanName.toLowerCase();
+        const lowerSector = cleanSector.toLowerCase();
+        const lowerDesc = cleanDescription.toLowerCase();
+        
+        if (lowerName.includes('kisan') || lowerName.includes('krishi') || lowerName.includes('fashal') || lowerDesc.includes('farmer') || lowerDesc.includes('agriculture') || lowerSector.includes('agriculture')) {
+          category = 'agriculture';
+        } else if (lowerName.includes('scholarship') || lowerName.includes('vidya') || lowerDesc.includes('school') || lowerDesc.includes('education') || lowerDesc.includes('college') || lowerSector.includes('education')) {
+          category = 'scholarship';
+        } else if (lowerName.includes('swasthya') || lowerName.includes('ayushman') || lowerName.includes('bima') || lowerDesc.includes('health') || lowerDesc.includes('hospital') || lowerDesc.includes('medical') || lowerSector.includes('health')) {
+          category = 'health';
+        } else if (lowerName.includes('awas') || lowerName.includes('housing') || lowerDesc.includes('home') || lowerDesc.includes('house') || lowerSector.includes('housing')) {
+          category = 'housing';
+        } else if (lowerName.includes('kaushal') || lowerName.includes('rozgar') || lowerDesc.includes('skills') || lowerDesc.includes('employment') || lowerDesc.includes('training') || lowerSector.includes('employment')) {
+          category = 'employment';
+        } else if (lowerName.includes('mahila') || lowerName.includes('matru') || lowerName.includes('women') || lowerDesc.includes('girls') || lowerDesc.includes('mother') || lowerSector.includes('women')) {
+          category = 'women';
+        } else if (lowerName.includes('pension') || lowerName.includes('yojana') || lowerDesc.includes('welfare') || lowerSector.includes('welfare') || lowerSector.includes('social')) {
+          category = 'social';
+        } else if (lowerName.includes('jan dhan') || lowerName.includes('mudra') || lowerDesc.includes('finance') || lowerDesc.includes('bank') || lowerDesc.includes('subsidy') || lowerSector.includes('finance')) {
+          category = 'financial';
+        }
 
         scrapedSchemes.push({
           id: `scraped_${generateId()}`,
           name: cleanName,
-          nameHi: cleanName, // Placeholder for translation
+          nameHi: cleanName,
           description: cleanDescription,
-          ministry: cleanMinistry || 'Government of India',
-          category: 'social', // Default category, would need NLP to categorize properly
+          ministry: cleanMinistry && cleanMinistry !== '—' ? cleanMinistry : 'Government of India',
+          category,
           schemeType: 'central',
           schemeSource: 'government',
           targetState: null,
@@ -65,11 +93,11 @@ export async function GET() {
           targetCategories: [],
           targetEducation: [],
           requiresBpl: false,
-          requiresFarmer: cleanName.toLowerCase().includes('kisan') || cleanDescription.toLowerCase().includes('farmer'),
-          requiresStudent: cleanName.toLowerCase().includes('scholarship') || cleanDescription.toLowerCase().includes('student'),
+          requiresFarmer: category === 'agriculture',
+          requiresStudent: category === 'scholarship',
           requiresDisability: false,
           applicationUrl: 'https://www.myscheme.gov.in',
-          deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Mock deadline 30 days from now
+          deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           documentsRequired: ['Aadhaar Card', 'Bank Account'],
           isActive: true,
         });

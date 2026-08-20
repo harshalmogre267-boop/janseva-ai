@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Send, X, MessageCircle, Bot, User, Sparkles, Mic } from 'lucide-react';
+import { useAuth } from '@/contexts/auth-context';
 
 interface Message {
   id: string;
@@ -25,6 +26,7 @@ const aiResponses: Record<string, string> = {
 };
 
 export default function Chatbot() {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -62,11 +64,24 @@ export default function Chatbot() {
     setInput('');
     setIsTyping(true);
 
-    // Simulate AI response delay
-    await new Promise((r) => setTimeout(r, 1200 + Math.random() * 800));
-
-    const aiContent = aiResponses[text] ||
-      `I understand you're asking about "${text}". Based on your profile, I'd recommend checking the **Scheme Explorer** for relevant matches. You can also try asking me about:\n\n• Your eligibility for specific schemes\n• How to apply for any scheme\n• Required documents for applications\n• Deadline information\n\nIs there anything specific you'd like to know?`;
+    let aiContent = '';
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, userProfile: user }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        aiContent = data.response;
+      } else {
+        throw new Error(data.error || 'Failed to get chat response');
+      }
+    } catch (e) {
+      console.error('Chatbot API fetch error, using local fallback:', e);
+      aiContent = aiResponses[text] ||
+        `I understand you're asking about "${text}". Based on your profile, I'd recommend checking the **Scheme Explorer** for relevant matches. You can also try asking me about:\n\n• Your eligibility for specific schemes\n• How to apply for any scheme\n• Required documents for applications\n• Deadline information\n\nIs there anything specific you'd like to know?`;
+    }
 
     const aiMsg: Message = {
       id: (idCounter.current++).toString(),

@@ -4,7 +4,7 @@ import { schemeCategories } from '@/lib/mock-data';
 import type { Scheme } from '@/lib/mock-data';
 import Link from 'next/link';
 import { Bookmark, ArrowRight, Clock, MapPin, Users } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from '@/contexts/translation-context';
 
 interface SchemeCardProps {
@@ -16,6 +16,11 @@ interface SchemeCardProps {
 
 export default function SchemeCard({ scheme, eligibilityScore, isBookmarked = false, onBookmark }: SchemeCardProps) {
   const [bookmarked, setBookmarked] = useState(isBookmarked);
+
+  useEffect(() => {
+    setBookmarked(isBookmarked);
+  }, [isBookmarked]);
+
   const { language } = useTranslation();
   const categoryInfo = schemeCategories.find(c => c.id === scheme.category);
   const score = eligibilityScore ?? 0;

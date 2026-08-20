@@ -1,13 +1,15 @@
 'use client';
 
 import { use } from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Navbar from '@/components/navbar';
 import Chatbot from '@/components/chatbot';
 import EligibilityMeter from '@/components/eligibility-meter';
 import Footer from '@/components/footer';
 import { mockSchemes, calculateEligibilityScore, schemeCategories } from '@/lib/mock-data';
 import { useAuth } from '@/contexts/auth-context';
+import { useSchemes } from '@/hooks/use-schemes';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Bookmark, Share2, ExternalLink, FileText, CheckCircle2,
   XCircle, Calendar, MapPin, Users, IndianRupee, GraduationCap, Clock,
@@ -17,10 +19,39 @@ import Link from 'next/link';
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
+  const { schemes } = useSchemes();
+  const router = useRouter();
   const [now] = useState(() => Date.now());
-  const scheme = mockSchemes.find((s) => s.id === id);
+  const scheme = schemes.find((s) => s.id === id) || mockSchemes.find((s) => s.id === id);
   const [bookmarked, setBookmarked] = useState(false);
+
+  useEffect(() => {
+    if (user && user.bookmarks) {
+      setBookmarked(user.bookmarks.includes(id));
+    } else {
+      setBookmarked(false);
+    }
+  }, [user, id]);
+
+  const handleToggleBookmark = async () => {
+    if (!user) {
+      router.push('/auth');
+      return;
+    }
+    const currentBookmarks = user.bookmarks || [];
+    const isAlreadyBookmarked = currentBookmarks.includes(id);
+    let newBookmarks;
+    if (isAlreadyBookmarked) {
+      newBookmarks = currentBookmarks.filter((bId) => bId !== id);
+    } else {
+      newBookmarks = [...currentBookmarks, id];
+    }
+    await updateProfile({
+      ...user,
+      bookmarks: newBookmarks,
+    });
+  };
 
   // Use a blank profile as fallback so criteria show as unchecked
   const activeUser = user || {
@@ -137,7 +168,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setBookmarked(!bookmarked)}
+                    onClick={handleToggleBookmark}
                     className={`p-2.5 rounded-xl transition-all ${
                       bookmarked ? 'bg-saffron-500/15 text-saffron-400' : 'bg-white/5 text-surface-400 hover:text-white'
                     }`}

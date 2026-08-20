@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 import { useSchemes } from '@/hooks/use-schemes';
 import SchemeCard from '@/components/scheme-card';
-import { mockUserProfile, calculateEligibilityScore, Scheme } from '@/lib/mock-data';
+import { mockUserProfile, calculateEligibilityScore, Scheme, Reminder } from '@/lib/mock-data';
 import { 
   Bookmark, 
   Bell, 
@@ -21,19 +21,20 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-interface Reminder {
-  id: string;
-  schemeId: string;
-  schemeName: string;
-  remindAt: string;
-  message: string;
-}
-
 export default function BookmarksPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, updateProfile } = useAuth();
   const { schemes } = useSchemes();
   const router = useRouter();
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(['1', '3', '4']); // default mocked bookmarks
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+
+  // Sync bookmarks and reminders from authenticated user profile
+  useEffect(() => {
+    if (user) {
+      setBookmarkedIds(user.bookmarks || []);
+      setReminders(user.reminders || []);
+    }
+  }, [user]);
 
   // Protect route
   useEffect(() => {
@@ -41,32 +42,26 @@ export default function BookmarksPage() {
       router.replace('/auth');
     }
   }, [user, loading, router]);
-  const [reminders, setReminders] = useState<Reminder[]>([
-    {
-      id: 'r1',
-      schemeId: '3',
-      schemeName: 'PM Awas Yojana (Urban)',
-      remindAt: '2026-03-24',
-      message: 'Apply before PM Awas housing deadline!',
-    },
-    {
-      id: 'r2',
-      schemeId: '1',
-      schemeName: 'PM Kisan Samman Nidhi',
-      remindAt: '2026-12-24',
-      message: 'Claim third installment of ₹2,000.',
-    }
-  ]);
 
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [selectedSchemeForReminder, setSelectedSchemeForReminder] = useState<Scheme | null>(null);
   const [reminderDate, setReminderDate] = useState('');
   const [reminderMsg, setReminderMsg] = useState('');
 
-  const removeBookmark = (id: string) => {
-    setBookmarkedIds((prev) => prev.filter((bid) => bid !== id));
-    // Also clean up any reminders linked to that bookmark
-    setReminders((prev) => prev.filter((r) => r.schemeId !== id));
+  const removeBookmark = async (id: string) => {
+    const newBookmarkedIds = bookmarkedIds.filter((bid) => bid !== id);
+    const newReminders = reminders.filter((r) => r.schemeId !== id);
+    
+    setBookmarkedIds(newBookmarkedIds);
+    setReminders(newReminders);
+    
+    if (user) {
+      await updateProfile({
+        ...user,
+        bookmarks: newBookmarkedIds,
+        reminders: newReminders,
+      });
+    }
   };
 
   const addReminderClick = (scheme: Scheme) => {
@@ -76,7 +71,7 @@ export default function BookmarksPage() {
     setReminderModalOpen(true);
   };
 
-  const saveReminder = () => {
+  const saveReminder = async () => {
     if (!selectedSchemeForReminder || !reminderDate) return;
     
     const newRem: Reminder = {
@@ -87,13 +82,29 @@ export default function BookmarksPage() {
       message: reminderMsg,
     };
 
-    setReminders((prev) => [newRem, ...prev]);
+    const newReminders = [newRem, ...reminders];
+    setReminders(newReminders);
     setReminderModalOpen(false);
     setSelectedSchemeForReminder(null);
+    
+    if (user) {
+      await updateProfile({
+        ...user,
+        reminders: newReminders,
+      });
+    }
   };
 
-  const removeReminder = (remId: string) => {
-    setReminders((prev) => prev.filter((r) => r.id !== remId));
+  const removeReminder = async (remId: string) => {
+    const newReminders = reminders.filter((r) => r.id !== remId);
+    setReminders(newReminders);
+    
+    if (user) {
+      await updateProfile({
+        ...user,
+        reminders: newReminders,
+      });
+    }
   };
 
   const activeUser = user || mockUserProfile;

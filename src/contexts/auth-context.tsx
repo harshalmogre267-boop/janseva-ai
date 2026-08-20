@@ -7,7 +7,8 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signOut as firebaseSignOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  signInAnonymously
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -35,21 +36,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
           try {
-            // Fetch profile data from Firestore
-            const docRef = doc(firestore, 'users', firebaseUser.uid);
+            // Check if user is anonymous (phone login bypass)
+            let docRef;
+            const activePhone = localStorage.getItem('janseva_active_phone');
+            if (firebaseUser.isAnonymous && activePhone) {
+              docRef = doc(firestore, 'users', `phone_${activePhone}`);
+            } else {
+              docRef = doc(firestore, 'users', firebaseUser.uid);
+            }
+            
             const docSnap = await getDoc(docRef);
             
             if (docSnap.exists()) {
               setUser(docSnap.data() as UserProfile);
             } else {
               // Create default profile if not found in Firestore
-              const cleanPhone = firebaseUser.phoneNumber 
+              const cleanPhone = activePhone || (firebaseUser.phoneNumber 
                 ? firebaseUser.phoneNumber.replace(/\D/g, '').slice(-10) 
-                : '9999999999';
+                : '9999999999');
               const formattedPhone = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
               
               const newProfile: UserProfile = {
-                id: firebaseUser.uid,
+                id: firebaseUser.isAnonymous && activePhone ? `phone_${activePhone}` : firebaseUser.uid,
                 phone: formattedPhone,
                 name: firebaseUser.displayName || '',
                 email: firebaseUser.email || '',
@@ -67,6 +75,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 isFarmer: false,
                 isStudent: false,
                 preferredLanguage: 'en',
+                bookmarks: [],
+                reminders: [],
               };
               
               await setDoc(docRef, newProfile);
@@ -116,8 +126,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('janseva_active_phone', cleanPhone);
 
     // If Firebase is active, we can look up/store profiles in Firestore to persist online
-    if (isConfigValid && db) {
+    if (isConfigValid && auth && db) {
       try {
+        if (!auth.currentUser) {
+          await signInAnonymously(auth);
+        }
         const docRef = doc(db, 'users', `phone_${cleanPhone}`);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
@@ -154,12 +167,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isFarmer: false,
         isStudent: false,
         preferredLanguage: 'en',
+        bookmarks: [],
+        reminders: [],
       };
 
       localStorage.setItem(`janseva_profile_${cleanPhone}`, JSON.stringify(newProfile));
       
-      if (isConfigValid && db) {
+      if (isConfigValid && auth && db) {
         try {
+          if (!auth.currentUser) {
+            await signInAnonymously(auth);
+          }
           await setDoc(doc(db, 'users', `phone_${cleanPhone}`), newProfile);
         } catch (err) {
           console.error('Firestore save failed during phone sign up:', err);
@@ -202,6 +220,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isFarmer: false,
         isStudent: false,
         preferredLanguage: 'en',
+        bookmarks: [],
+        reminders: [],
       };
 
       await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
@@ -234,6 +254,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isFarmer: false,
       isStudent: false,
       preferredLanguage: 'en',
+      bookmarks: [],
+      reminders: [],
     };
     
     localStorage.setItem(`janseva_profile_${mockPhone}`, JSON.stringify(newProfile));
