@@ -306,6 +306,42 @@ export async function PUT(request: Request) {
     }
 
     await removeOtp();
+
+    // ── Create / ensure user profile exists in Firestore ──
+    if (isConfigValid && db) {
+      try {
+        const userDocRef = doc(db, 'users', `phone_${cleanPhone}`);
+        const userDocSnap = await getDoc(userDocRef);
+        if (!userDocSnap.exists()) {
+          const formattedPhone = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
+          await setDoc(userDocRef, {
+            id: `phone_${cleanPhone}`,
+            phone: formattedPhone,
+            name: '',
+            email: '',
+            dateOfBirth: '1995-01-01',
+            gender: 'male',
+            category: 'general',
+            state: '',
+            district: '',
+            annualIncome: 0,
+            occupation: '',
+            educationLevel: 'secondary',
+            isDisabled: false,
+            isMinority: false,
+            isBpl: false,
+            isFarmer: false,
+            isStudent: false,
+            preferredLanguage: 'en',
+            bookmarks: [],
+            reminders: [],
+          });
+        }
+      } catch (err) {
+        console.error('[JanSeva] Failed to create user profile in Firestore:', err);
+      }
+    }
+
     return NextResponse.json({ success: true, message: 'OTP verified successfully!' });
 
   } catch (error) {
