@@ -145,7 +145,11 @@ export default function ProfilePage() {
                     }`}>
                       {isCompleted ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : index + 1}
                     </div>
-                    <span className="text-xs font-semibold whitespace-nowrap hidden lg:inline">{step.title}</span>
+                    <span className={`text-xs font-semibold whitespace-nowrap transition-all duration-300 ${
+                      isActive ? 'inline' : 'hidden'
+                    }`}>
+                      {step.title}
+                    </span>
                   </button>
                   {index < steps.length - 1 && (
                     <div className="h-px bg-white/10 flex-1 mx-2 sm:mx-4" />
