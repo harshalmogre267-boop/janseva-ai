@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { db, isConfigValid } from '@/lib/firebase';
+import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 
 // In-memory OTP store (clears on server restart, good for development)
 // In production, use Redis or a database
@@ -105,8 +107,22 @@ export async function POST(request: Request) {
     const otp = generateOTP();
     const expires = Date.now() + 5 * 60 * 1000; // 5 minutes
 
-    // Store OTP server-side
-    otpStore.set(cleanPhone, { otp, expires, attempts: 0 });
+    // Store OTP in Firestore if active, otherwise fallback to in-memory store
+    if (isConfigValid && db) {
+      try {
+        await setDoc(doc(db, 'otps', cleanPhone), {
+          otp,
+          expires,
+          attempts: 0
+        });
+        console.log(`[JanSeva] ✅ OTP saved in Firestore for ${cleanPhone}`);
+      } catch (err) {
+        console.error('[JanSeva] Failed to save OTP in Firestore, using memory fallback:', err);
+        otpStore.set(cleanPhone, { otp, expires, attempts: 0 });
+      }
+    } else {
+      otpStore.set(cleanPhone, { otp, expires, attempts: 0 });
+    }
 
     let delivered = false;
     let deliveryMethod = 'screen';
@@ -221,11 +237,51 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, error: 'Phone and OTP required' }, { status: 400 });
     }
 
-    const stored = otpStore.get(cleanPhone);
+    let stored = null;
+    if (isConfigValid && db) {
+      try {
+        const docSnap = await getDoc(doc(db, 'otps', cleanPhone));
+        if (docSnap.exists()) {
+          stored = docSnap.data() as { otp: string; expires: number; attempts: number };
+        }
+      } catch (err) {
+        console.error('[JanSeva] Firestore OTP retrieval error, using memory fallback:', err);
+      }
+    }
+
+    if (!stored) {
+      stored = otpStore.get(cleanPhone);
+    }
+
+    // Helper functions for updating/deleting OTP in both Firestore and memory
+    const updateOtpAttempts = async (attempts: number) => {
+      if (isConfigValid && db) {
+        try {
+          await setDoc(doc(db, 'otps', cleanPhone), { ...stored, attempts }, { merge: true });
+        } catch (err) {
+          console.error('[JanSeva] Failed to update OTP attempts in Firestore:', err);
+        }
+      }
+      const memStored = otpStore.get(cleanPhone);
+      if (memStored) {
+        otpStore.set(cleanPhone, { ...memStored, attempts });
+      }
+    };
+
+    const removeOtp = async () => {
+      if (isConfigValid && db) {
+        try {
+          await deleteDoc(doc(db, 'otps', cleanPhone));
+        } catch (err) {
+          console.error('[JanSeva] Failed to delete OTP in Firestore:', err);
+        }
+      }
+      otpStore.delete(cleanPhone);
+    };
 
     // Allow '123456' as universal dev bypass
     if (otp === '123456') {
-      otpStore.delete(cleanPhone);
+      await removeOtp();
       return NextResponse.json({ success: true, message: 'Verified (dev mode)' });
     }
 
@@ -234,21 +290,22 @@ export async function PUT(request: Request) {
     }
 
     if (Date.now() > stored.expires) {
-      otpStore.delete(cleanPhone);
+      await removeOtp();
       return NextResponse.json({ success: false, error: 'OTP has expired. Please request a new one.' }, { status: 400 });
     }
 
-    stored.attempts++;
-    if (stored.attempts > 5) {
-      otpStore.delete(cleanPhone);
+    const nextAttempts = stored.attempts + 1;
+    if (nextAttempts > 5) {
+      await removeOtp();
       return NextResponse.json({ success: false, error: 'Too many attempts. Please request a new OTP.' }, { status: 429 });
     }
 
     if (stored.otp !== otp) {
-      return NextResponse.json({ success: false, error: `Incorrect OTP. ${5 - stored.attempts} attempts left.` }, { status: 400 });
+      await updateOtpAttempts(nextAttempts);
+      return NextResponse.json({ success: false, error: `Incorrect OTP. ${5 - nextAttempts} attempts left.` }, { status: 400 });
     }
 
-    otpStore.delete(cleanPhone);
+    await removeOtp();
     return NextResponse.json({ success: true, message: 'OTP verified successfully!' });
 
   } catch (error) {
