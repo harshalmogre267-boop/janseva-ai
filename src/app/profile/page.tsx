@@ -145,10 +145,10 @@ export default function ProfilePage() {
                     }`}>
                       {isCompleted ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : index + 1}
                     </div>
-                    <span className="text-xs font-semibold whitespace-nowrap">{step.title}</span>
+                    <span className="text-xs font-semibold whitespace-nowrap hidden lg:inline">{step.title}</span>
                   </button>
                   {index < steps.length - 1 && (
-                    <div className="h-px bg-white/10 flex-1 mx-4" />
+                    <div className="h-px bg-white/10 flex-1 mx-2 sm:mx-4" />
                   )}
                 </div>
               );
@@ -197,12 +197,13 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-surface-300 mb-2">Mobile Number (Verified)</label>
+                      <label className="block text-sm font-medium text-surface-300 mb-2">Mobile Number</label>
                       <input
                         type="tel"
-                        disabled
                         value={formData.phone}
-                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-3 text-surface-400 cursor-not-allowed text-sm"
+                        onChange={(e) => handleInputChange('phone', e.target.value)}
+                        placeholder="E.g., +91 99999 99999"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-surface-500 focus:outline-none focus:border-saffron-500/40 transition-all text-sm"
                       />
                     </div>
                     <div>
