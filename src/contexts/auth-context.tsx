@@ -63,7 +63,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const docSnap = await getDoc(docRef);
             
             if (docSnap.exists()) {
-              const profile = docSnap.data() as UserProfile;
+              const data = docSnap.data();
+              const profile: UserProfile = {
+                id: firebaseUser.uid,
+                phone: data.phone || '',
+                name: data.name || '',
+                email: data.email || '',
+                dateOfBirth: data.dateOfBirth || '1995-01-01',
+                gender: data.gender || 'male',
+                category: data.category || 'general',
+                state: data.state || '',
+                district: data.district || '',
+                annualIncome: data.annualIncome || 0,
+                occupation: data.occupation || '',
+                educationLevel: data.educationLevel || 'secondary',
+                isDisabled: data.isDisabled || false,
+                isMinority: data.isMinority || false,
+                isBpl: data.isBpl || false,
+                isFarmer: data.isFarmer || false,
+                isStudent: data.isStudent || false,
+                preferredLanguage: data.preferredLanguage || 'en',
+                bookmarks: data.bookmarks || [],
+                reminders: data.reminders || [],
+              };
+
+              // Backfill missing fields to Firestore
+              if (!data.bookmarks || !data.reminders || data.name === undefined || data.isFarmer === undefined) {
+                await setDoc(docRef, profile, { merge: true });
+              }
+
               localStorage.setItem('janseva_active_user', JSON.stringify(profile));
               setUser(profile);
             } else {
@@ -155,7 +183,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const docRef = doc(db, 'users', `phone_${cleanPhone}`);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          const profile = docSnap.data() as UserProfile;
+          const data = docSnap.data();
+          const profile: UserProfile = {
+            id: `phone_${cleanPhone}`,
+            phone: data.phone || formattedPhone,
+            name: data.name || '',
+            email: data.email || '',
+            dateOfBirth: data.dateOfBirth || '1995-01-01',
+            gender: data.gender || 'male',
+            category: data.category || 'general',
+            state: data.state || '',
+            district: data.district || '',
+            annualIncome: data.annualIncome || 0,
+            occupation: data.occupation || '',
+            educationLevel: data.educationLevel || 'secondary',
+            isDisabled: data.isDisabled || false,
+            isMinority: data.isMinority || false,
+            isBpl: data.isBpl || false,
+            isFarmer: data.isFarmer || false,
+            isStudent: data.isStudent || false,
+            preferredLanguage: data.preferredLanguage || 'en',
+            bookmarks: data.bookmarks || [],
+            reminders: data.reminders || [],
+          };
+
+          // Backfill missing fields to Firestore
+          if (!data.bookmarks || !data.reminders || data.name === undefined || data.isFarmer === undefined) {
+            await setDoc(docRef, profile, { merge: true });
+          }
+
           localStorage.setItem(`janseva_profile_${cleanPhone}`, JSON.stringify(profile));
           localStorage.setItem('janseva_active_user', JSON.stringify(profile));
           setUser(profile);
