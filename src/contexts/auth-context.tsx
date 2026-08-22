@@ -149,26 +149,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem('janseva_active_user', JSON.stringify(profile));
           setUser(profile);
         } else {
-          if (!isPhoneUser) {
-            // Email user without Firestore profile — reject session
-            await firebaseSignOut(auth);
-            localStorage.removeItem('janseva_active_user');
-            setUser(null);
-            setLoading(false);
-            return;
+          let newProfile: UserProfile;
+
+          if (isPhoneUser) {
+            // Phone user — create default profile
+            const activePhone = localStorage.getItem('janseva_active_phone') || '9999999999';
+            const formattedPhone = `+91 ${activePhone.slice(0, 5)} ${activePhone.slice(5)}`;
+
+            newProfile = {
+              id: `phone_${activePhone}`,
+              phone: formattedPhone,
+              name: firebaseUser.displayName || '',
+              email: firebaseUser.email || '',
+              ...USER_DEFAULTS,
+            };
+          } else {
+            // Email user without Firestore profile — create profile on login/restore session
+            const mockPhone = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+            const formattedPhone = `+91 ${mockPhone.slice(0, 5)} ${mockPhone.slice(5)}`;
+
+            newProfile = {
+              id: firebaseUser.uid,
+              phone: formattedPhone,
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+              email: firebaseUser.email || '',
+              ...USER_DEFAULTS,
+            };
           }
-
-          // Phone user — create default profile
-          const activePhone = localStorage.getItem('janseva_active_phone') || '9999999999';
-          const formattedPhone = `+91 ${activePhone.slice(0, 5)} ${activePhone.slice(5)}`;
-
-          const newProfile: UserProfile = {
-            id: `phone_${activePhone}`,
-            phone: formattedPhone,
-            name: firebaseUser.displayName || '',
-            email: firebaseUser.email || '',
-            ...USER_DEFAULTS,
-          };
 
           await setDoc(docRef, newProfile);
           localStorage.setItem('janseva_active_user', JSON.stringify(newProfile));
@@ -320,29 +327,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userDocRef = doc(db, 'users', firebaseUser.uid);
     const userDocSnap = await getDoc(userDocRef);
 
+    let profile: UserProfile;
+
     if (!userDocSnap.exists()) {
-      // No profile found — reject login to prevent orphaned auth users
-      await firebaseSignOut(auth);
-      throw new Error('Account not found. Please register first.');
-    }
+      // Create user profile in Firestore if it doesn't exist upon login
+      const mockPhone = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+      const formattedPhone = `+91 ${mockPhone.slice(0, 5)} ${mockPhone.slice(5)}`;
 
-    // Step 3: Load profile from Firestore
-    const data = userDocSnap.data();
-    const profile: UserProfile = buildProfile(data, {
-      id: firebaseUser.uid,
-      phone: data.phone || '',
-      email: data.email || firebaseUser.email || '',
-    });
+      profile = {
+        id: firebaseUser.uid,
+        phone: formattedPhone,
+        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+        email: firebaseUser.email || email,
+        ...USER_DEFAULTS,
+      };
 
-    // Step 4: Backfill any missing fields
-    const needsBackfill =
-      !data.bookmarks ||
-      !data.reminders ||
-      data.name === undefined ||
-      data.isFarmer === undefined;
+      await setDoc(userDocRef, profile);
+    } else {
+      // Step 3: Load profile from Firestore
+      const data = userDocSnap.data();
+      profile = buildProfile(data, {
+        id: firebaseUser.uid,
+        phone: data.phone || '',
+        email: data.email || firebaseUser.email || '',
+      });
 
-    if (needsBackfill) {
-      await setDoc(userDocRef, profile, { merge: true });
+      // Step 4: Backfill any missing fields
+      const needsBackfill =
+        !data.bookmarks ||
+        !data.reminders ||
+        data.name === undefined ||
+        data.isFarmer === undefined;
+
+      if (needsBackfill) {
+        await setDoc(userDocRef, profile, { merge: true });
+      }
     }
 
     // Step 5: Set session
