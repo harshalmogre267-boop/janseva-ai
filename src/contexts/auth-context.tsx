@@ -2,24 +2,29 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile } from '@/lib/mock-data';
-import { auth, db, isConfigValid } from '@/lib/firebase';
+import { auth, db, googleProvider, isConfigValid } from '@/lib/firebase';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithPopup,
+  sendPasswordResetEmail,
+  updateProfile as updateFirebaseAuthProfile,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   signInAnonymously,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
-  login: (phone: string) => void;
+  login: (phone: string) => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  updateProfile: (profile: UserProfile) => Promise<void> | void;
-  logout: () => void;
+  sendPasswordReset: (email: string) => Promise<void>;
+  updateProfile: (profile: UserProfile) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -121,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           docRef = doc(db, 'users', `phone_${activePhone}`);
           isPhoneUser = true;
         } else {
-          // Email/password user — verify profile exists in Firestore
+          // Email/password or Google user — verify profile exists in Firestore
           docRef = doc(db, 'users', firebaseUser.uid);
         }
 
@@ -133,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             id: isPhoneUser ? `phone_${localStorage.getItem('janseva_active_phone')}` : firebaseUser.uid,
             phone: data.phone || '',
             email: data.email || firebaseUser.email || '',
+            name: data.name || firebaseUser.displayName || 'User',
           });
 
           // Backfill missing fields
@@ -143,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             data.isFarmer === undefined;
 
           if (needsBackfill) {
-            await setDoc(docRef, profile, { merge: true });
+            await setDoc(docRef, { ...profile, updatedAt: serverTimestamp() }, { merge: true });
           }
 
           localStorage.setItem('janseva_active_user', JSON.stringify(profile));
@@ -164,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               ...USER_DEFAULTS,
             };
           } else {
-            // Email user without Firestore profile — create profile on login/restore session
+            // Email / Google user without Firestore profile — create profile on login/restore session
             const mockPhone = Math.floor(1000000000 + Math.random() * 9000000000).toString();
             const formattedPhone = `+91 ${mockPhone.slice(0, 5)} ${mockPhone.slice(5)}`;
 
@@ -177,7 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             };
           }
 
-          await setDoc(docRef, newProfile);
+          await setDoc(docRef, { ...newProfile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
           localStorage.setItem('janseva_active_user', JSON.stringify(newProfile));
           setUser(newProfile);
         }
@@ -190,6 +196,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => unsubscribe();
   }, []);
+
+  // ─────────────────────────────────────────────────────────────────
+  // GOOGLE SIGN-IN
+  // ─────────────────────────────────────────────────────────────────
+  const loginWithGoogle = async () => {
+    if (!isConfigValid || !auth || !googleProvider) {
+      // Fallback demo mode login
+      const mockPhone = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+      const formattedPhone = `+91 ${mockPhone.slice(0, 5)} ${mockPhone.slice(5)}`;
+      const demoProfile: UserProfile = {
+        id: `google_demo_${mockPhone}`,
+        phone: formattedPhone,
+        name: 'Google User',
+        email: 'user@gmail.com',
+        ...USER_DEFAULTS,
+      };
+      localStorage.setItem('janseva_active_user', JSON.stringify(demoProfile));
+      setUser(demoProfile);
+      return;
+    }
+
+    const result = await signInWithPopup(auth, googleProvider);
+    const firebaseUser = result.user;
+
+    if (db) {
+      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      let profile: UserProfile;
+
+      if (!userDocSnap.exists()) {
+        const mockPhone = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+        const formattedPhone = `+91 ${mockPhone.slice(0, 5)} ${mockPhone.slice(5)}`;
+
+        profile = {
+          id: firebaseUser.uid,
+          phone: formattedPhone,
+          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+          email: firebaseUser.email || '',
+          ...USER_DEFAULTS,
+        };
+
+        await setDoc(userDocRef, { ...profile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      } else {
+        const data = userDocSnap.data();
+        profile = buildProfile(data, {
+          id: firebaseUser.uid,
+          phone: data.phone || '',
+          email: data.email || firebaseUser.email || '',
+          name: data.name || firebaseUser.displayName || 'User',
+        });
+      }
+
+      localStorage.setItem('janseva_active_user', JSON.stringify(profile));
+      setUser(profile);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────
+  // PASSWORD RESET
+  // ─────────────────────────────────────────────────────────────────
+  const sendPasswordReset = async (email: string) => {
+    if (!isConfigValid || !auth) {
+      throw new Error('Firebase Authentication is not configured.');
+    }
+    await sendPasswordResetEmail(auth, email.trim());
+  };
 
   // ─────────────────────────────────────────────────────────────────
   // OTP / PHONE SIGN-IN
@@ -223,7 +296,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             data.isFarmer === undefined;
 
           if (needsBackfill) {
-            await setDoc(docRef, profile, { merge: true });
+            await setDoc(docRef, { ...profile, updatedAt: serverTimestamp() }, { merge: true });
           }
 
           localStorage.setItem(`janseva_profile_${cleanPhone}`, JSON.stringify(profile));
@@ -258,7 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!auth.currentUser) {
             await signInAnonymously(auth);
           }
-          await setDoc(doc(db, 'users', `phone_${cleanPhone}`), newProfile);
+          await setDoc(doc(db, 'users', `phone_${cleanPhone}`), { ...newProfile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
         } catch (err) {
           console.error('Firestore save failed during phone sign up:', err);
         }
@@ -295,6 +368,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const firebaseUser = userCredential.user;
 
+    // Update Firebase Auth user display name
+    try {
+      await updateFirebaseAuthProfile(firebaseUser, { displayName: name });
+    } catch (e) {
+      console.warn('Failed to update display name on auth profile:', e);
+    }
+
     const mockPhone = Math.floor(1000000000 + Math.random() * 9000000000).toString();
     const formattedPhone = `+91 ${mockPhone.slice(0, 5)} ${mockPhone.slice(5)}`;
 
@@ -306,13 +386,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...USER_DEFAULTS,
     };
 
-    await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+    // Store in Firestore
+    await setDoc(doc(db, 'users', firebaseUser.uid), {
+      ...newProfile,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
     localStorage.setItem('janseva_active_user', JSON.stringify(newProfile));
     setUser(newProfile);
   };
 
   // ─────────────────────────────────────────────────────────────────
-  // EMAIL / PASSWORD LOGIN  (with Firestore verification)
+  // EMAIL / PASSWORD LOGIN (with Firestore verification)
   // ─────────────────────────────────────────────────────────────────
   const loginWithEmail = async (email: string, password: string) => {
     if (!isConfigValid || !auth || !db) {
@@ -342,7 +428,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...USER_DEFAULTS,
       };
 
-      await setDoc(userDocRef, profile);
+      await setDoc(userDocRef, {
+        ...profile,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
     } else {
       // Step 3: Load profile from Firestore
       const data = userDocSnap.data();
@@ -360,7 +450,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data.isFarmer === undefined;
 
       if (needsBackfill) {
-        await setDoc(userDocRef, profile, { merge: true });
+        await setDoc(userDocRef, { ...profile, updatedAt: serverTimestamp() }, { merge: true });
       }
     }
 
@@ -370,18 +460,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ─────────────────────────────────────────────────────────────────
-  // UPDATE PROFILE
+  // UPDATE PROFILE (with Firestore sync)
   // ─────────────────────────────────────────────────────────────────
   const updateProfile = async (profile: UserProfile) => {
     setUser(profile);
     localStorage.setItem('janseva_active_user', JSON.stringify(profile));
 
     const cleanPhone = profile.phone.replace(/\D/g, '').slice(-10);
-    localStorage.setItem(`janseva_profile_${cleanPhone}`, JSON.stringify(profile));
+    if (cleanPhone) {
+      localStorage.setItem(`janseva_profile_${cleanPhone}`, JSON.stringify(profile));
+    }
 
     if (isConfigValid && db) {
       try {
-        await setDoc(doc(db, 'users', profile.id), profile);
+        await setDoc(doc(db, 'users', profile.id), {
+          ...profile,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
       } catch (err) {
         console.error('Failed to sync profile update to Firestore:', err);
       }
@@ -408,7 +503,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithEmail, register, updateProfile, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        loginWithEmail,
+        loginWithGoogle,
+        register,
+        sendPasswordReset,
+        updateProfile,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

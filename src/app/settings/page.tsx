@@ -13,11 +13,12 @@ import {
   BellRing, 
   ShieldCheck, 
   Check, 
-  Sparkles
+  Sparkles,
+  LogOut
 } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const router = useRouter();
 
   // Protect route
@@ -218,8 +219,25 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            {/* Account Management & Sign Out */}
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-5 flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-white">Account Session</h4>
+                <p className="text-[10px] text-surface-400 mt-0.5">
+                  Signed in as <span className="text-emerald-400">{user?.email || user?.phone || 'Citizen'}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl text-xs font-semibold transition-all"
+              >
+                <LogOut className="w-3.5 h-3.5" /> Sign Out
+              </button>
+            </div>
+
             {/* Action buttons */}
-            <div className="flex items-center justify-between pt-4">
+            <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-surface-500">Last saved: Just now</span>
               <button
                 onClick={saveSettings}

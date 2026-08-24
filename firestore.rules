@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && (request.auth.uid == userId || request.auth.token.phone_number != null);
+    }
+
+    // User profiles collection
+    match /users/{userId} {
+      // Allow user to read and update their own profile document
+      allow read: if isAuthenticated() && (request.auth.uid == userId || userId.matches('^phone_.*'));
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (request.auth.uid == userId || userId.matches('^phone_.*'));
+    }
+
+    // Public Government Schemes collection
+    match /schemes/{schemeId} {
+      // Anyone can read schemes data
+      allow read: if true;
+      // Only authenticated admins or system writes
+      allow write: if isAuthenticated();
+    }
+
+    // Default deny for other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
