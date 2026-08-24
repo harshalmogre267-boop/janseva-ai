@@ -190,11 +190,11 @@ export default function AuthPage() {
       const data = await res.json();
 
       if (data.success) {
-        login(phone);
+        await login(phone);
         router.push('/dashboard');
       } else {
         if (code === serverOtp) {
-          login(phone);
+          await login(phone);
           router.push('/dashboard');
         } else {
           setError(data.error || 'Invalid OTP. Please try again.');
@@ -202,7 +202,7 @@ export default function AuthPage() {
       }
     } catch {
       if (code === serverOtp || code === '123456') {
-        login(phone);
+        await login(phone);
         router.push('/dashboard');
       } else {
         setError('Network error. Please check connection or try the code shown on screen.');

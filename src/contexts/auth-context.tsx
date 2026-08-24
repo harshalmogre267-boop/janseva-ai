@@ -15,7 +15,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
-  login: (phone: string) => void;
+  login: (phone: string) => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   updateProfile: (profile: UserProfile) => Promise<void> | void;
@@ -107,30 +107,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        let docRef;
-        let isPhoneUser = false;
-
-        if (firebaseUser.isAnonymous) {
-          const activePhone = localStorage.getItem('janseva_active_phone');
-          if (!activePhone) {
-            if (auth) await firebaseSignOut(auth);
-            setUser(null);
-            setLoading(false);
-            return;
-          }
-          docRef = doc(db, 'users', `phone_${activePhone}`);
-          isPhoneUser = true;
-        } else {
-          // Email/password user — verify profile exists in Firestore
-          docRef = doc(db, 'users', firebaseUser.uid);
-        }
-
+        // Profiles are keyed by Firebase Auth UID to satisfy the Firestore
+        // owner rule: request.auth.uid == userId.
+        const docRef = doc(db, 'users', firebaseUser.uid);
+        const activePhone = localStorage.getItem('janseva_active_phone');
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           const data = docSnap.data();
           const profile: UserProfile = buildProfile(data, {
-            id: isPhoneUser ? `phone_${localStorage.getItem('janseva_active_phone')}` : firebaseUser.uid,
+            id: firebaseUser.uid,
             phone: data.phone || '',
             email: data.email || firebaseUser.email || '',
           });
@@ -151,13 +137,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           let newProfile: UserProfile;
 
-          if (isPhoneUser) {
+          if (firebaseUser.isAnonymous) {
             // Phone user — create default profile
-            const activePhone = localStorage.getItem('janseva_active_phone') || '9999999999';
-            const formattedPhone = `+91 ${activePhone.slice(0, 5)} ${activePhone.slice(5)}`;
+            const formattedPhone = activePhone
+              ? `+91 ${activePhone.slice(0, 5)} ${activePhone.slice(5)}`
+              : '';
 
             newProfile = {
-              id: `phone_${activePhone}`,
+              id: firebaseUser.uid,
               phone: formattedPhone,
               name: firebaseUser.displayName || '',
               email: firebaseUser.email || '',
@@ -205,13 +192,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!auth.currentUser) {
           await signInAnonymously(auth);
         }
-        const docRef = doc(db, 'users', `phone_${cleanPhone}`);
+        const docRef = doc(db, 'users', auth.currentUser.uid);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           const data = docSnap.data();
           const profile: UserProfile = buildProfile(data, {
-            id: `phone_${cleanPhone}`,
+            id: auth.currentUser?.uid || `local_${cleanPhone}`,
             phone: data.phone || formattedPhone,
             email: data.email || '',
           });
@@ -243,7 +230,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(profile);
     } else {
       const newProfile: UserProfile = {
-        id: `phone_${cleanPhone}`,
+        id: auth.currentUser?.uid || `local_${cleanPhone}`,
         phone: formattedPhone,
         name: '',
         email: '',
@@ -258,7 +245,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!auth.currentUser) {
             await signInAnonymously(auth);
           }
-          await setDoc(doc(db, 'users', `phone_${cleanPhone}`), newProfile);
+          if (!auth.currentUser) throw new Error('Firebase phone session was not created.');
+          await setDoc(doc(db, 'users', auth.currentUser.uid), newProfile);
         } catch (err) {
           console.error('Firestore save failed during phone sign up:', err);
         }
