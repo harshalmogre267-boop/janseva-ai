@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -20,15 +20,12 @@ const isConfigValid = !!(
 let app;
 let auth: ReturnType<typeof getAuth> | null = null;
 let db: ReturnType<typeof getFirestore> | null = null;
-let googleProvider: GoogleAuthProvider | null = null;
 
 if (isConfigValid) {
   try {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     db = getFirestore(app);
-    googleProvider = new GoogleAuthProvider();
-    googleProvider.setCustomParameters({ prompt: 'select_account' });
   } catch (error) {
     console.error("Failed to initialize Firebase:", error);
   }
@@ -40,5 +37,4 @@ if (isConfigValid) {
   }
 }
 
-export { auth, db, googleProvider, isConfigValid };
-
+export { auth, db, isConfigValid };

@@ -94,15 +94,12 @@ export default function ProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      await updateProfile(formData);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error('Failed to save profile:', err);
-    } finally {
-      setLoading(false);
-    }
+    // Simulate API save
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    updateProfile(formData);
+    setLoading(false);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
   };
 
   return (
