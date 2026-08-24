@@ -189,37 +189,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (isConfigValid && auth && db) {
       try {
-        if (!auth.currentUser) {
-          await signInAnonymously(auth);
-        }
-        const docRef = doc(db, 'users', auth.currentUser.uid);
+        // signInAnonymously returns a user, so the UID is guaranteed here.
+        const firebaseUser = auth.currentUser ?? (await signInAnonymously(auth)).user;
+        const docRef = doc(db, 'users', firebaseUser.uid);
         const docSnap = await getDoc(docRef);
 
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          const profile: UserProfile = buildProfile(data, {
-            id: auth.currentUser?.uid || `local_${cleanPhone}`,
-            phone: data.phone || formattedPhone,
-            email: data.email || '',
-          });
+        const profile: UserProfile = docSnap.exists()
+          ? buildProfile(docSnap.data(), {
+              id: firebaseUser.uid,
+              phone: docSnap.data().phone || formattedPhone,
+              email: docSnap.data().email || '',
+            })
+          : {
+              id: firebaseUser.uid,
+              phone: formattedPhone,
+              name: '',
+              email: '',
+              ...USER_DEFAULTS,
+            };
 
-          const needsBackfill =
-            !data.bookmarks ||
-            !data.reminders ||
-            data.name === undefined ||
-            data.isFarmer === undefined;
-
-          if (needsBackfill) {
-            await setDoc(docRef, profile, { merge: true });
-          }
-
-          localStorage.setItem(`janseva_profile_${cleanPhone}`, JSON.stringify(profile));
-          localStorage.setItem('janseva_active_user', JSON.stringify(profile));
-          setUser(profile);
-          return;
-        }
+        await setDoc(docRef, profile, { merge: true });
+        localStorage.setItem(`janseva_profile_${cleanPhone}`, JSON.stringify(profile));
+        localStorage.setItem('janseva_active_user', JSON.stringify(profile));
+        setUser(profile);
+        return;
       } catch (err) {
-        console.error('Firestore phone check error, using local storage fallback:', err);
+        console.error('Firestore phone login failed, using local storage fallback:', err);
       }
     }
 
@@ -228,35 +223,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const profile = JSON.parse(storedProfile);
       localStorage.setItem('janseva_active_user', JSON.stringify(profile));
       setUser(profile);
-    } else {
-      const newProfile: UserProfile = {
-        id: auth.currentUser?.uid || `local_${cleanPhone}`,
-        phone: formattedPhone,
-        name: '',
-        email: '',
-        ...USER_DEFAULTS,
-      };
-
-      localStorage.setItem(`janseva_profile_${cleanPhone}`, JSON.stringify(newProfile));
-      localStorage.setItem('janseva_active_user', JSON.stringify(newProfile));
-
-      if (isConfigValid && auth && db) {
-        try {
-          if (!auth.currentUser) {
-            await signInAnonymously(auth);
-          }
-          if (!auth.currentUser) throw new Error('Firebase phone session was not created.');
-          await setDoc(doc(db, 'users', auth.currentUser.uid), newProfile);
-        } catch (err) {
-          console.error('Firestore save failed during phone sign up:', err);
-        }
-      }
-
-      setUser(newProfile);
+      return;
     }
-  };
 
-  // ─────────────────────────────────────────────────────────────────
+    const newProfile: UserProfile = {
+      id: `local_${cleanPhone}`,
+      phone: formattedPhone,
+      name: '',
+      email: '',
+      ...USER_DEFAULTS,
+    };
+
+    localStorage.setItem(`janseva_profile_${cleanPhone}`, JSON.stringify(newProfile));
+    localStorage.setItem('janseva_active_user', JSON.stringify(newProfile));
+    setUser(newProfile);
+  };
   // EMAIL / PASSWORD REGISTRATION
   // ─────────────────────────────────────────────────────────────────
   const register = async (name: string, email: string, password: string) => {
